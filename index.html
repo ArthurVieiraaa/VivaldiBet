@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Plataforma de Cassino VIP</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Lato:wght@400;700&display=swap" rel="stylesheet">
     <style>
@@ -99,9 +100,9 @@
     <!-- BARRA DE NAVEGAÇÃO -->
     <nav class="bg-black/50 backdrop-blur-sm p-4 shadow-lg shadow-black/30 sticky top-0 z-50">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <div class="font-brand text-2xl text-yellow-400">VivaldBet</div>
+            <div class="font-brand text-2xl text-yellow-400">Casino VIP Club</div>
             <div class="flex items-center gap-4">
-                <span class="text-lg hidden sm:inline"><i class="fas fa-user mr-2 text-yellow-400"></i>Player</span>
+                <span class="text-lg hidden sm:inline"><i class="fas fa-user mr-2 text-yellow-400"></i>Jogador 1</span>
                 <div class="bg-black/50 px-4 py-2 rounded-lg border border-yellow-500/50">
                     <span class="font-bold text-xl text-yellow-400" id="playerBalance">R$ 1000</span>
                 </div>
@@ -114,7 +115,7 @@
         <!-- PÁGINA: MENU PRINCIPAL -->
         <div id="game-menu" class="page active">
             <h1 class="font-brand text-5xl text-center mb-12 text-yellow-400 drop-shadow-[0_2px_5px_rgba(0,0,0,0.5)]">Selecione um Jogo</h1>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-12">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-12 mb-16">
                 <!-- Card Roleta -->
                 <div class="game-card rounded-lg p-8 text-center cursor-pointer" data-game="roulette">
                     <div class="icon text-6xl mb-4"><i class="fa-solid fa-life-ring"></i></div>
@@ -132,6 +133,14 @@
                     <div class="icon text-6xl mb-4"><i class="fa-solid fa-cards"></i></div>
                     <h2 class="font-brand text-3xl mb-2">Blackjack</h2>
                     <p class="text-gray-400">Vença a mesa sem ultrapassar 21. Estratégia e sorte!</p>
+                </div>
+            </div>
+
+            <!-- Gráfico de Desempenho -->
+            <div class="bg-gray-800/50 rounded-lg p-6 border border-gray-700 shadow-2xl">
+                <h2 class="font-brand text-2xl text-center mb-6 text-yellow-400">Seu Desempenho (Histórico de Saldo)</h2>
+                <div class="relative w-full h-64">
+                    <canvas id="balanceChart"></canvas>
                 </div>
             </div>
         </div>
@@ -236,6 +245,61 @@ const winAnimationEl = document.getElementById('win-animation');
 const winAmountEl = document.getElementById('win-amount');
 let playerBalance = 1000;
 
+// Variáveis para o Gráfico
+let balanceHistory = [1000];
+let balanceLabels = ['0'];
+let balanceChart;
+
+function initChart() {
+    const ctx = document.getElementById('balanceChart').getContext('2d');
+    balanceChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: balanceLabels,
+            datasets: [{
+                label: 'Saldo (R$)',
+                data: balanceHistory,
+                borderColor: '#facc15', // Yellow-400
+                backgroundColor: 'rgba(250, 204, 21, 0.1)',
+                borderWidth: 2,
+                tension: 0.3,
+                pointRadius: 3,
+                pointBackgroundColor: '#facc15',
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            return 'R$ ' + context.parsed.y;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    ticks: { color: '#9ca3af' }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { display: false }
+                }
+            }
+        }
+    });
+}
+
+// Inicializar o gráfico quando a página carregar
+window.addEventListener('load', initChart);
+
 function showWinningAnimation(amount) {
     winAmountEl.textContent = `R$ ${amount.toFixed(0)}`;
     winAnimationEl.classList.remove('hidden');
@@ -256,9 +320,37 @@ function showWinningAnimation(amount) {
 function updateBalance(newBalance) {
     playerBalance = newBalance;
     balanceEl.textContent = `R$ ${playerBalance.toFixed(0)}`;
+    
+    // Atualizar Gráfico
+    balanceHistory.push(newBalance);
+    balanceLabels.push(balanceHistory.length.toString());
+    if (balanceChart) {
+        balanceChart.data.labels = balanceLabels;
+        balanceChart.data.datasets[0].data = balanceHistory;
+        balanceChart.update();
+    }
+
     if (playerBalance <= 0) {
         setTimeout(() => {
             alert("Você ficou sem dinheiro! O jogo será reiniciado com R$ 1000.");
+            
+            // Reiniciar histórico do gráfico
+            balanceHistory = [1000];
+            balanceLabels = ['0'];
+            if(balanceChart) {
+                balanceChart.data.labels = balanceLabels;
+                balanceChart.data.datasets[0].data = balanceHistory;
+                balanceChart.update();
+            }
+            
+            // Chamar updateBalance(1000) vai adicionar o 1000 novamente, mas como limpamos
+            // o array acima, o resultado final será [1000, 1000], o que é aceitável ou
+            // podemos apenas atualizar a variável e o texto manualmente aqui para evitar duplicata.
+            // Para simplicidade, vamos deixar o updateBalance lidar com o 1000 inicial.
+            // Mas para evitar [1000, 1000], resetamos para vazio antes de chamar updateBalance.
+            balanceHistory = [];
+            balanceLabels = [];
+
             updateBalance(1000);
             switchToPage('game-menu');
         }, 500);
